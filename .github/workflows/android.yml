@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="VORIX-Native-Project-v2.zip"
+          ZIP_FILE="VORIX-v1.1.0.zip"
           test -f "$ZIP_FILE" || { echo "Arquivo $ZIP_FILE não encontrado na raiz do repositório."; exit 1; }
           mkdir -p extracted
           unzip -q "$ZIP_FILE" -d extracted
