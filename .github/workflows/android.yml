@@ -3,7 +3,10 @@ name: Build VORIX APK
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: [ "principal" ]
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -18,16 +21,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Download Android command line tools
+      - name: Install Android command line tools
         shell: bash
         run: |
           set -euo pipefail
           SDK="$RUNNER_TEMP/android-sdk"
-          mkdir -p "$SDK/cmdline-tools"
+          mkdir -p "$SDK/cmdline-tools" "$RUNNER_TEMP/android-tools"
           curl -fL --retry 3 \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
             -o "$RUNNER_TEMP/android-tools.zip"
-          mkdir -p "$RUNNER_TEMP/android-tools"
           unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$RUNNER_TEMP/android-tools"
           mkdir -p "$SDK/cmdline-tools/latest"
           mv "$RUNNER_TEMP/android-tools/cmdline-tools/"* "$SDK/cmdline-tools/latest/"
@@ -50,24 +52,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl -fL --retry 3 https://services.gradle.org/distributions/gradle-8.9-bin.zip \
+          curl -fL --retry 3 \
+            https://services.gradle.org/distributions/gradle-8.9-bin.zip \
             -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gradle-8.9/bin" >> "$GITHUB_PATH"
 
-      - name: Extract native project ZIP
+      - name: Extract VORIX project
         shell: bash
         run: |
           set -euo pipefail
           ZIP_FILE="VORIX-v1.1.0.zip"
-          test -f "$ZIP_FILE" || { echo "Arquivo $ZIP_FILE não encontrado na raiz do repositório."; exit 1; }
+          echo "Procurando: $ZIP_FILE"
+          ls -lah
+          test -f "$ZIP_FILE" || { echo "ERRO: $ZIP_FILE não está na raiz do repositório."; exit 1; }
           mkdir -p extracted
           unzip -q "$ZIP_FILE" -d extracted
-          PROJECT_DIR="$(dirname "$(find extracted -name settings.gradle.kts -print -quit)")"
-          test -n "$PROJECT_DIR" || { echo "settings.gradle.kts não encontrado dentro do ZIP."; exit 1; }
-          test -f "$PROJECT_DIR/app/build.gradle.kts" || { echo "Módulo app não encontrado."; exit 1; }
+          SETTINGS_FILE="$(find extracted -type f -name settings.gradle.kts -print -quit)"
+          test -n "$SETTINGS_FILE" || { echo "ERRO: settings.gradle.kts não encontrado dentro do ZIP."; exit 1; }
+          PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          test -f "$PROJECT_DIR/app/build.gradle.kts" || { echo "ERRO: app/build.gradle.kts não encontrado em $PROJECT_DIR."; exit 1; }
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Projeto encontrado em: $PROJECT_DIR"
+          find "$PROJECT_DIR" -maxdepth 2 -type f | sort
 
       - name: Build debug APK
         shell: bash
