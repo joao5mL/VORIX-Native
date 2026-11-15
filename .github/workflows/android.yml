@@ -1,4 +1,3 @@
-
 name: Build VORIX APK
 
 on:
@@ -9,9 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -20,71 +18,69 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android Command Line Tools
+      - name: Download Android command line tools
+        shell: bash
         run: |
-          set -e
-
+          set -euo pipefail
           SDK="$RUNNER_TEMP/android-sdk"
           mkdir -p "$SDK/cmdline-tools"
-
-          curl -fL \
+          curl -fL --retry 3 \
             https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip \
             -o "$RUNNER_TEMP/android-tools.zip"
-
           mkdir -p "$RUNNER_TEMP/android-tools"
           unzip -q "$RUNNER_TEMP/android-tools.zip" -d "$RUNNER_TEMP/android-tools"
-
           mkdir -p "$SDK/cmdline-tools/latest"
-          mv "$RUNNER_TEMP/android-tools/cmdline-tools/"* \
-             "$SDK/cmdline-tools/latest/"
-
+          mv "$RUNNER_TEMP/android-tools/cmdline-tools/"* "$SDK/cmdline-tools/latest/"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
           echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$SDK/platform-tools" >> "$GITHUB_PATH"
 
       - name: Install Android SDK packages
+        shell: bash
         run: |
+          set -euo pipefail
           yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses || true
-
           sdkmanager --sdk_root="$ANDROID_HOME" \
             "platforms;android-35" \
             "build-tools;35.0.0" \
             "platform-tools"
 
-      - name: Install Gradle
+      - name: Install Gradle 8.9
+        shell: bash
         run: |
-          wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip \
-            -O "$RUNNER_TEMP/gradle.zip"
-
+          set -euo pipefail
+          curl -fL --retry 3 https://services.gradle.org/distributions/gradle-8.9-bin.zip \
+            -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gradle-8.9/bin" >> "$GITHUB_PATH"
 
-      - name: Extract VORIX project
+      - name: Extract native project ZIP
+        shell: bash
         run: |
-          unzip -q VORIX-Native-Project.zip -d extracted
-
-          echo "Conteúdo extraído:"
-          find extracted -maxdepth 3 -type f
+          set -euo pipefail
+          ZIP_FILE="VORIX-Native-Project-v2.zip"
+          test -f "$ZIP_FILE" || { echo "Arquivo $ZIP_FILE não encontrado na raiz do repositório."; exit 1; }
+          mkdir -p extracted
+          unzip -q "$ZIP_FILE" -d extracted
+          PROJECT_DIR="$(dirname "$(find extracted -name settings.gradle.kts -print -quit)")"
+          test -n "$PROJECT_DIR" || { echo "settings.gradle.kts não encontrado dentro do ZIP."; exit 1; }
+          test -f "$PROJECT_DIR/app/build.gradle.kts" || { echo "Módulo app não encontrado."; exit 1; }
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Projeto encontrado em: $PROJECT_DIR"
 
       - name: Build debug APK
+        shell: bash
         run: |
-          PROJECT_DIR="$(dirname "$(find extracted -name settings.gradle.kts -print -quit)")"
-
-          if [ -z "$PROJECT_DIR" ] || [ ! -f "$PROJECT_DIR/app/build.gradle.kts" ]; then
-            echo "Estrutura do projeto não encontrada no ZIP."
-            exit 1
-          fi
-
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-
+          set -euo pipefail
           cd "$PROJECT_DIR"
-          gradle --no-daemon assembleDebug
+          gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VORIX-apk
+          name: VORIX-apk-v1.1.0
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
           
