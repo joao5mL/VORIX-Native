@@ -62,7 +62,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ZIP_FILE="VORIX-v1.1.0.zip"
+          ZIP_FILE="VORIX-v1.2.0.zip"
           echo "Procurando: $ZIP_FILE"
           ls -lah
           test -f "$ZIP_FILE" || { echo "ERRO: $ZIP_FILE não está na raiz do repositório."; exit 1; }
@@ -86,7 +86,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VORIX-apk-v1.1.0
+          name: VORIX-apk-v1.2.0
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
